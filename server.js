@@ -49,6 +49,49 @@ app.use((_req, res, next) => {
   next();
 });
 
+app.use(express.json({ limit: "2mb" }));
+
+// Local HTTP Transfer Sessions (ephemeral, in-memory, zero permanent disk storage)
+const transferSessions = new Map();
+
+function createTransferSession(senderId, targetId, files) {
+  const transferId = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const filesMap = new Map();
+  for (const f of files) {
+    filesMap.set(f.id, {
+      id: f.id,
+      name: cleanDeviceName(f.name),
+      size: Number(f.size) || 0,
+      type: typeof f.type === "string" ? f.type.slice(0, 100) : "application/octet-stream",
+      buffer: null,
+      bytesReceived: 0,
+      isUploaded: false
+    });
+  }
+
+  const session = {
+    id: transferId,
+    senderId,
+    targetId,
+    files: filesMap,
+    createdAt: Date.now(),
+    timer: setTimeout(() => {
+      cleanupTransferSession(transferId);
+    }, 10 * 60 * 1000)
+  };
+
+  transferSessions.set(transferId, session);
+  return session;
+}
+
+function cleanupTransferSession(transferId) {
+  const session = transferSessions.get(transferId);
+  if (!session) return;
+  clearTimeout(session.timer);
+  session.files.clear();
+  transferSessions.delete(transferId);
+}
+
 app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);
 app.get("/api/devices", (_req, res) => {
@@ -58,6 +101,88 @@ app.get("/api/devices", (_req, res) => {
 app.get("/api/network-urls", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({ urls: getNetworkUrls() });
+});
+
+// Local HTTP Transfer APIs
+app.post("/api/transfer/init", (req, res) => {
+  const { senderId, targetId, files } = req.body || {};
+  if (!senderId || !targetId || !Array.isArray(files) || files.length === 0) {
+    return res.status(400).json({ error: "Missing required transfer parameters." });
+  }
+  const session = createTransferSession(senderId, targetId, files);
+  io.to(targetId).emit("local-transfer-ready", {
+    transferId: session.id,
+    senderId,
+    senderName: devices.get(senderId)?.name || "Nearby device",
+    files: Array.from(session.files.values()).map(f => ({ id: f.id, name: f.name, size: f.size, type: f.type }))
+  });
+  res.json({ ok: true, transferId: session.id });
+});
+
+app.post("/api/transfer/upload/:transferId/:fileId", (req, res) => {
+  const { transferId, fileId } = req.params;
+  const session = transferSessions.get(transferId);
+  if (!session) {
+    return res.status(404).json({ error: "Transfer session not found or expired." });
+  }
+  const file = session.files.get(fileId);
+  if (!file) {
+    return res.status(404).json({ error: "File not found in this transfer session." });
+  }
+
+  const chunks = [];
+  let bytesReceived = 0;
+
+  req.on("data", (chunk) => {
+    chunks.push(chunk);
+    bytesReceived += chunk.length;
+  });
+
+  req.on("end", () => {
+    const fullBuffer = Buffer.concat(chunks);
+    file.buffer = fullBuffer;
+    file.bytesReceived = fullBuffer.length;
+    file.isUploaded = true;
+
+    io.to(session.targetId).emit("local-file-available", {
+      transferId,
+      fileId,
+      name: file.name,
+      size: file.buffer.length,
+      type: file.type
+    });
+
+    res.json({ ok: true, fileId, receivedBytes: fullBuffer.length });
+  });
+
+  req.on("error", (err) => {
+    console.error("Local transfer upload error:", err.message);
+    res.status(500).json({ error: "Upload failed" });
+  });
+});
+
+app.get("/api/transfer/download/:transferId/:fileId", (req, res) => {
+  const { transferId, fileId } = req.params;
+  const session = transferSessions.get(transferId);
+  if (!session) {
+    return res.status(404).send("Transfer session not found or expired.");
+  }
+  const file = session.files.get(fileId);
+  if (!file || !file.buffer) {
+    return res.status(404).send("File not ready or not found.");
+  }
+
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name)}"`);
+  res.setHeader("Content-Type", file.type || "application/octet-stream");
+  res.setHeader("Content-Length", file.buffer.length);
+  res.end(file.buffer);
+});
+
+app.post("/api/transfer/cancel/:transferId", (req, res) => {
+  const { transferId } = req.params;
+  cleanupTransferSession(transferId);
+  res.json({ ok: true });
 });
 
 // Serve frontend as the primary application UI
@@ -143,12 +268,31 @@ function isDescription(value, expectedType) {
     typeof value.sdp === "string" && value.sdp.length > 0 && value.sdp.length <= SIGNAL_MAX_LENGTH;
 }
 
+function getPrimaryLanIp() {
+  for (const interfaces of Object.values(os.networkInterfaces())) {
+    for (const net of interfaces || []) {
+      if (net.family === "IPv4" && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return "127.0.0.1";
+}
+
 function getClientIp(socket) {
   let address = socket.handshake?.address || socket.conn?.remoteAddress || "";
   if (typeof address !== "string") return "";
   if (address.startsWith("::ffff:")) address = address.slice(7);
   if (address === "::1") address = "127.0.0.1";
   return address;
+}
+
+function getEffectiveClientIp(socket) {
+  const ip = getClientIp(socket);
+  if (!ip || ip === "127.0.0.1" || ip === "::1") {
+    return getPrimaryLanIp();
+  }
+  return ip;
 }
 
 function isPrivateOrLocalIp(ip) {
@@ -259,7 +403,7 @@ io.on("connection", (socket) => {
       rejectEvent(socket, "Invalid connection offer.");
       return;
     }
-    const fromIp = getClientIp(socket);
+    const fromIp = getEffectiveClientIp(socket);
     io.to(targetId).emit("webrtc-offer", {
       fromId: socket.id,
       fromName: devices.get(socket.id).name,
@@ -276,7 +420,7 @@ io.on("connection", (socket) => {
       rejectEvent(socket, "Invalid connection answer.");
       return;
     }
-    const fromIp = getClientIp(socket);
+    const fromIp = getEffectiveClientIp(socket);
     io.to(targetId).emit("webrtc-answer", {
       fromId: socket.id,
       fromIp,
@@ -294,7 +438,7 @@ io.on("connection", (socket) => {
       rejectEvent(socket, "Invalid network candidate.");
       return;
     }
-    const fromIp = getClientIp(socket);
+    const fromIp = getEffectiveClientIp(socket);
     io.to(targetId).emit("webrtc-ice-candidate", {
       fromId: socket.id,
       fromIp,
@@ -361,7 +505,12 @@ module.exports = {
   devices,
   start,
   getClientIp,
+  getPrimaryLanIp,
+  getEffectiveClientIp,
   rewriteMdnsHost,
   rewriteDescription,
-  rewriteIceCandidate
+  rewriteIceCandidate,
+  createTransferSession,
+  cleanupTransferSession,
+  transferSessions
 };

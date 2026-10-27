@@ -108,13 +108,28 @@
         <button id="saveName" class="quiet-button" type="button">Save</button>
       </div>
 
-      <!-- Network Mode Option -->
-      <div class="network-mode-row">
-        <label class="mode-label" for="localOnlyMode">
-          <input type="checkbox" id="localOnlyMode" checked>
-          <span>Local-Only Mode (Offline / Hotspot)</span>
-        </label>
-        <span class="mode-tooltip" title="Local-Only mode eliminates external STUN DNS lookups, allowing instant pairing on offline routers and phone hotspots.">ℹ</span>
+      <!-- Transfer Mode Selector -->
+      <div class="mode-selector-wrap">
+        <div class="mode-selector-header">
+          <span class="mode-selector-title">TRANSFER MODE</span>
+          <span id="currentModeBadge" class="mode-badge mode-badge-local">Local Network (HTTP)</span>
+        </div>
+        <div class="mode-options" role="radiogroup" aria-label="Transfer mode">
+          <label class="mode-option selected" id="localModeLabel">
+            <input type="radio" name="transferMode" id="modeLocal" value="local" checked>
+            <div class="mode-option-text">
+              <strong>Local Network (Offline & Hotspot)</strong>
+              <span>Recommended for Wi-Fi and mobile hotspots. Fast, 100% reliable, zero WebRTC timeouts.</span>
+            </div>
+          </label>
+          <label class="mode-option" id="webrtcModeLabel">
+            <input type="radio" name="transferMode" id="modeWebRTC" value="webrtc">
+            <div class="mode-option-text">
+              <strong>Online P2P (WebRTC DataChannel)</strong>
+              <span>Peer-to-peer data channel using Google STUN for internet-assisted transfers.</span>
+            </div>
+          </label>
+        </div>
       </div>
 
       <div class="section-title">
@@ -159,6 +174,21 @@
       <p class="hint">Keep this page open on both devices while transferring.</p>
     </section>
   </main>
+
+  <!-- Diagnostics & Activity Log Drawer -->
+  <section class="diag-container" aria-label="Transfer diagnostics">
+    <button id="toggleDiagBtn" class="diag-toggle-btn" type="button" aria-expanded="false">
+      <span>Activity Log & Diagnostics</span>
+      <span id="diagChevron" class="chevron">▼</span>
+    </button>
+    <div id="diagDrawer" class="diag-drawer hidden">
+      <div class="diag-header">
+        <span class="diag-status-summary" id="diagStatusSummary">Ready</span>
+        <button id="clearDiagBtn" class="quiet-button small" type="button">Clear</button>
+      </div>
+      <pre id="diagLogBox" class="diag-log-box">[Ready] QuickShare initialized. Choose a device to transfer.</pre>
+    </div>
+  </section>
   <footer>QuickShare <span>·</span> Direct Local Network File Sharing (P2P)</footer>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/qr.js"></script>

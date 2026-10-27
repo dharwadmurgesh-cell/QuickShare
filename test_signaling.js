@@ -30,6 +30,59 @@ function fetchUrl(path) {
   });
 }
 
+function postJson(path, data) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(data);
+    const req = http.request(`${SERVER_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(payload)
+      }
+    }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => resolve({ statusCode: res.statusCode, body: JSON.parse(body || "{}") }));
+    });
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function uploadBinary(path, buffer) {
+  return new Promise((resolve, reject) => {
+    const req = http.request(`${SERVER_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": buffer.length
+      }
+    }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => resolve({ statusCode: res.statusCode, body: JSON.parse(body || "{}") }));
+    });
+    req.on("error", reject);
+    req.write(buffer);
+    req.end();
+  });
+}
+
+function downloadBinary(path) {
+  return new Promise((resolve, reject) => {
+    http.get(`${SERVER_URL}${path}`, (res) => {
+      const chunks = [];
+      res.on("data", (chunk) => { chunks.push(chunk); });
+      res.on("end", () => resolve({
+        statusCode: res.statusCode,
+        headers: res.headers,
+        buffer: Buffer.concat(chunks)
+      }));
+    }).on("error", reject);
+  });
+}
+
 function testMdnsRewrite() {
   console.log("[Test 0] Rewriting Chrome mDNS host candidates to LAN IPs...");
   const mdnsLine = "candidate:842163049 1 udp 1677729535 abcdef12-3456-7890-abcd-ef1234567890.local 54123 typ host";
@@ -127,6 +180,39 @@ function testQrCodeGeneration() {
   console.log(`✓ Offline QR code SVG generated successfully (${svg.length} bytes)`);
 }
 
+async function testLocalHttpTransfer() {
+  console.log("[Test 2.5] Testing Local HTTP Transfer Flow (Upload, Download, Byte Verification)...");
+  const testData = Buffer.from("QuickShare Local HTTP Transfer Test Payload 1234567890! Special Chars: @#$%^&*()");
+  const fileId = "test_f_1";
+
+  // 1. Init session
+  const initRes = await postJson("/api/transfer/init", {
+    senderId: "test-sender",
+    targetId: "test-target",
+    files: [{ id: fileId, name: "sample-doc.txt", size: testData.length, type: "text/plain" }]
+  });
+  assert.strictEqual(initRes.statusCode, 200, "Init transfer must succeed");
+  assert.ok(initRes.body.transferId, "Must return valid transferId");
+  const transferId = initRes.body.transferId;
+
+  // 2. Upload binary
+  const uploadRes = await uploadBinary(`/api/transfer/upload/${transferId}/${fileId}`, testData);
+  assert.strictEqual(uploadRes.statusCode, 200, "Upload must succeed");
+  assert.strictEqual(uploadRes.body.receivedBytes, testData.length, "Server must report exact received bytes");
+
+  // 3. Download binary and verify byte-for-byte
+  const dlRes = await downloadBinary(`/api/transfer/download/${transferId}/${fileId}`);
+  assert.strictEqual(dlRes.statusCode, 200, "Download must return 200 OK");
+  assert.strictEqual(dlRes.buffer.length, testData.length, "Downloaded byte count must match uploaded byte count");
+  assert.ok(dlRes.buffer.equals(testData), "Downloaded data must match uploaded data byte-for-byte");
+  console.log("✓ Local HTTP transfer verified: exact byte count and buffer content match");
+
+  // 4. Cancel / Cleanup
+  const cancelRes = await postJson(`/api/transfer/cancel/${transferId}`, {});
+  assert.strictEqual(cancelRes.statusCode, 200, "Cancel session must return 200 OK");
+  console.log("✓ Local HTTP transfer cleanup verified");
+}
+
 async function runTests() {
   console.log("========================================================");
   console.log("=== QuickShare Automated Comprehensive Test Suite ===");
@@ -145,6 +231,7 @@ async function runTests() {
     testMdnsRewrite();
     await testHttpEndpoints();
     testQrCodeGeneration();
+    await testLocalHttpTransfer();
 
     // 3. Connect Client A (Laptop) and Client B (Phone)
     console.log("[Test 3] Connecting Client A and Client B via Socket.IO...");
