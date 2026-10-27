@@ -55,17 +55,24 @@ app.get("/api/devices", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({ devices: listDevices() });
 });
+app.get("/api/network-urls", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ urls: getNetworkUrls() });
+});
 
-// Serve the testing UI from /public if present, and keep /frontend accessible at /classic
-if (fs.existsSync(PUBLIC_DIR)) {
-  app.use(express.static(PUBLIC_DIR, { extensions: ["html"] }));
-}
-app.use("/classic", express.static(FRONTEND_DIR, { extensions: ["html"] }));
+// Serve frontend as the primary application UI
 app.use(express.static(FRONTEND_DIR, {
   extensions: ["html"],
   etag: true,
   maxAge: process.env.NODE_ENV === "production" ? "1h" : 0
 }));
+
+// Keep the testing / diagnostics interface accessible at /testing
+if (fs.existsSync(PUBLIC_DIR)) {
+  app.use("/testing", express.static(PUBLIC_DIR, { extensions: ["html"] }));
+}
+app.use("/classic", (_req, res) => res.redirect(301, "/"));
+
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
 });
@@ -177,7 +184,11 @@ function rewriteIceCandidate(candidate, ip) {
 
 io.on("connection", (socket) => {
   socket.data.rateLimits = new Map();
-  socket.emit("session-info", { socketId: socket.id, clientIp: getClientIp(socket) });
+  socket.emit("session-info", {
+    socketId: socket.id,
+    clientIp: getClientIp(socket),
+    networkUrls: getNetworkUrls()
+  });
   socket.emit("devices-updated", listDevices());
 
   socket.on("register-device", (rawName) => {

@@ -4,3 +4,4 @@ npm-debug.log*
 Thumbs.db
 .env
 .env.local
+test_qr_scratch.js

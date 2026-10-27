@@ -11,26 +11,124 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/" aria-label="QuickShare home"><span class="brand-mark">Q</span> QuickShare</a>
-    <div class="connection"><span class="pulse" id="connectionDot"></span><span id="connectionText">Connecting…</span></div>
+    <div class="topbar-actions">
+      <button id="showQrBtn" class="qr-nav-btn" type="button" aria-haspopup="dialog" aria-label="Show QR code for phone or TV pairing">
+        <span class="qr-icon" aria-hidden="true">⚃</span>
+        <span>Pair Phone / TV</span>
+      </button>
+      <div class="connection"><span class="pulse" id="connectionDot"></span><span id="connectionText">Connecting…</span></div>
+    </div>
   </header>
 
+  <!-- Incoming Transfer Request In-Page Modal -->
+  <div id="incomingModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="incomingTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-badge"><span aria-hidden="true">↓</span></div>
+        <div>
+          <p class="eyebrow">INCOMING TRANSFER</p>
+          <h3 id="incomingTitle">Transfer Request</h3>
+        </div>
+      </div>
+      <p id="incomingDesc" class="modal-desc">A nearby device wants to send you files.</p>
+      <div class="incoming-files-wrap">
+        <ul id="incomingFilesList" class="incoming-files-list"></ul>
+      </div>
+      <div class="modal-actions">
+        <button id="acceptRequestBtn" class="btn-action btn-accept" type="button">Accept Transfer</button>
+        <button id="rejectRequestBtn" class="btn-action btn-decline" type="button">Decline</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Code & Local Network Pairing Modal -->
+  <div id="qrModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+    <div class="modal-card qr-modal-card">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">OFFLINE PAIRING</p>
+          <h3 id="qrTitle">Connect Phone or TV</h3>
+        </div>
+        <button id="closeQrModalBtn" class="close-modal-btn" type="button" aria-label="Close dialog">×</button>
+      </div>
+      <p class="modal-desc">Scan with your mobile camera or type the address into your Smart TV browser. Both devices must be on the same Wi-Fi or mobile hotspot.</p>
+      
+      <div class="qr-canvas-wrap">
+        <div id="qrSvgContainer" class="qr-code-box"></div>
+      </div>
+
+      <div class="url-copy-box">
+        <code id="qrUrlDisplay">http://localhost:3000</code>
+        <button id="copyUrlBtn" class="quiet-button" type="button">Copy</button>
+      </div>
+      <p id="copyStatusText" class="copy-status" aria-live="polite"></p>
+
+      <div class="qr-hint">
+        <span>✓ 100% Offline</span> · <span>No Internet Needed</span> · <span>Hotspot Ready</span>
+      </div>
+    </div>
+  </div>
+
   <main class="layout">
-    <section class="intro">
-      <p class="eyebrow">FAST. PRIVATE. NEARBY.</p>
-      <h1>Send files.<br><span>Not links.</span></h1>
-      <p class="lede">Share photos, videos, and documents directly with devices on your network.</p>
-      <div class="privacy-note"><span aria-hidden="true">◇</span><span>Files travel directly between devices. QuickShare does not store your files.</span></div>
-    </section>
+    <div class="left-column">
+      <section class="intro">
+        <p class="eyebrow">FAST. PRIVATE. NEARBY.</p>
+        <h1>Send files.<br><span>Not links.</span></h1>
+        <p class="lede">Share photos, videos, and documents directly with devices on your Wi-Fi network or mobile hotspot.</p>
+        <div class="privacy-note"><span aria-hidden="true">◇</span><span>Direct peer-to-peer over local network. QuickShare does not upload or store your files on any external server.</span></div>
+      </section>
+
+      <!-- Received Files Section -->
+      <section class="received-card" id="receivedCard" aria-label="Received files">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">DOWNLOADS</p>
+            <h2>Received files</h2>
+          </div>
+          <span id="receivedBadge" class="received-count">0 files</span>
+        </div>
+        <div id="receivedList" class="received-list" aria-live="polite">
+          <div class="empty-state">Files sent to this device will appear here ready to download.</div>
+        </div>
+        <p class="tv-notice">
+          <span class="tv-icon" aria-hidden="true">📺</span>
+          <span><strong>Smart TV Note:</strong> Some TV browsers disable local disk downloads. If downloading is restricted on your TV, transfer files from your TV to a phone or laptop.</span>
+        </p>
+      </section>
+    </div>
 
     <section class="share-card" aria-label="Send files">
-      <div class="card-head"><div><p class="eyebrow">YOUR DEVICE</p><h2 id="myDevice">This device</h2></div><span class="device-icon" aria-hidden="true">▣</span></div>
+      <div class="card-head">
+        <div><p class="eyebrow">YOUR DEVICE</p><h2 id="myDevice">This device</h2></div>
+        <span class="device-icon" aria-hidden="true">▣</span>
+      </div>
       <label class="field-label" for="deviceName">Device name</label>
-      <div class="name-row"><input id="deviceName" maxlength="40" autocomplete="off" placeholder="e.g. Alex’s laptop"><button id="saveName" class="quiet-button" type="button">Save</button></div>
+      <div class="name-row">
+        <input id="deviceName" maxlength="40" autocomplete="off" placeholder="e.g. Alex’s laptop">
+        <button id="saveName" class="quiet-button" type="button">Save</button>
+      </div>
 
-      <div class="section-title"><h3>Nearby devices</h3><span id="deviceCount">0 found</span></div>
-      <div id="deviceList" class="device-list"><div class="empty-state">Looking for devices on your network…</div></div>
+      <!-- Network Mode Option -->
+      <div class="network-mode-row">
+        <label class="mode-label" for="localOnlyMode">
+          <input type="checkbox" id="localOnlyMode" checked>
+          <span>Local-Only Mode (Offline / Hotspot)</span>
+        </label>
+        <span class="mode-tooltip" title="Local-Only mode eliminates external STUN DNS lookups, allowing instant pairing on offline routers and phone hotspots.">ℹ</span>
+      </div>
 
-      <div class="section-title file-title"><h3>Your files</h3><span id="fileCount">0 selected</span></div>
+      <div class="section-title">
+        <h3>Nearby devices</h3>
+        <span id="deviceCount">0 found</span>
+      </div>
+      <div id="deviceList" class="device-list" role="region" aria-label="Nearby devices list">
+        <div class="empty-state">Looking for devices on your network…</div>
+      </div>
+
+      <div class="section-title file-title">
+        <h3>Your files</h3>
+        <span id="fileCount">0 selected</span>
+      </div>
       <label class="drop-zone" id="dropZone" for="fileInput">
         <input id="fileInput" type="file" multiple>
         <span class="upload-icon" aria-hidden="true">↑</span>
@@ -38,13 +136,32 @@
         <span>Files are sent directly to your selected device</span>
       </label>
       <ul id="fileList" class="file-list" aria-live="polite"></ul>
-      <div id="transferStatus" class="transfer-status" role="status" aria-live="polite"></div>
-      <button id="sendButton" class="send-button" type="button" disabled>Choose a device to send</button>
+
+      <!-- Transfer Status & Progress -->
+      <div id="transferContainer" class="transfer-container">
+        <div id="transferStatus" class="transfer-status" role="status" aria-live="polite"></div>
+        <div id="progressWrap" class="progress-wrap hidden">
+          <div class="progress-bar-bg">
+            <div id="progressBar" class="progress-bar-fill" style="width: 0%"></div>
+          </div>
+          <div class="progress-info">
+            <span id="progressPercent">0%</span>
+            <span id="transferSpeed">0 KB/s</span>
+            <span id="transferDetails">0 B / 0 B</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-buttons-row">
+        <button id="sendButton" class="send-button" type="button" disabled>Choose a device to send</button>
+        <button id="cancelButton" class="cancel-button hidden" type="button">Cancel Transfer</button>
+      </div>
       <p class="hint">Keep this page open on both devices while transferring.</p>
     </section>
   </main>
-  <footer>QuickShare <span>·</span> Local network file sharing</footer>
+  <footer>QuickShare <span>·</span> Direct Local Network File Sharing (P2P)</footer>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/qr.js"></script>
   <script src="/script.js"></script>
 </body>
 </html>
