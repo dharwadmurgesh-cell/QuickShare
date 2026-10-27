@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuickShare — Testing Interface</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-main">
+        <h1>QuickShare <span class="tag">Testing Interface</span></h1>
+        <p class="subtitle">Direct peer-to-peer file transfer over local Wi-Fi or mobile hotspot</p>
+      </div>
+      <div class="header-links">
+        <a href="/classic" class="classic-link" title="Open the styled UI">Open Classic UI →</a>
+      </div>
+    </header>
+
+    <!-- Incoming Connection Request Notification (Modal / Banner) -->
+    <div id="incomingRequestModal" class="notification-banner hidden" role="alertdialog" aria-labelledby="incomingTitle">
+      <div class="notification-content">
+        <h3 id="incomingTitle">Incoming Transfer Request</h3>
+        <p id="incomingMessage">A device wants to send you files.</p>
+        <ul id="incomingFilesList" class="incoming-files-list"></ul>
+        <div class="button-group">
+          <button id="acceptRequestBtn" class="btn btn-success" type="button">Accept</button>
+          <button id="rejectRequestBtn" class="btn btn-danger" type="button">Reject</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Left Column: Device Info & Discovery -->
+      <section class="card" aria-label="Device Configuration">
+        <h2>1. Your Device</h2>
+        <div class="status-row">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="connectionStateText">Connecting to server…</span>
+          <span class="socket-id-label" id="mySocketIdDisplay"></span>
+        </div>
+
+        <label class="field-label" for="deviceNameInput">Device Name</label>
+        <div class="input-row">
+          <input id="deviceNameInput" type="text" maxlength="40" placeholder="e.g. My Laptop">
+          <button id="saveNameBtn" class="btn btn-secondary" type="button">Save</button>
+        </div>
+
+        <div class="network-mode-box">
+          <label class="checkbox-label" for="localOnlyMode">
+            <input type="checkbox" id="localOnlyMode" checked>
+            <span><strong>Local-Only Mode (Offline / No STUN)</strong></span>
+          </label>
+          <p class="help-text mode-help">Recommended for offline Wi-Fi and mobile hotspots. Avoids STUN timeouts and uses local host candidates directly.</p>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="header-split">
+          <h2>2. Available Devices</h2>
+          <button id="refreshDevicesBtn" class="btn btn-sm btn-outline" type="button">Refresh Devices</button>
+        </div>
+        <p class="help-text">Select a device below to establish a WebRTC connection:</p>
+        <div id="deviceList" class="device-list">
+          <div class="empty-state">Looking for other devices on the network…</div>
+        </div>
+      </section>
+
+      <!-- Right Column: File Transfer & Controls -->
+      <section class="card" aria-label="File Transfer">
+        <h2>3. File Transfer</h2>
+        <div id="targetDeviceBanner" class="target-banner">
+          Target device: <strong id="targetDeviceName">None selected</strong>
+        </div>
+
+        <label class="field-label" for="fileInput">Select Files (Multiple allowed)</label>
+        <input id="fileInput" type="file" multiple>
+
+        <ul id="selectedFilesList" class="file-list"></ul>
+
+        <div class="button-group transfer-actions">
+          <button id="sendFilesBtn" class="btn btn-primary" type="button" disabled>Send Files</button>
+          <button id="cancelTransferBtn" class="btn btn-warning" type="button" disabled>Cancel Transfer</button>
+        </div>
+
+        <!-- Transfer Status and Progress -->
+        <div class="transfer-box">
+          <div class="transfer-status-line">
+            <span class="status-label">Status:</span>
+            <span id="transferStatusBadge" class="badge badge-idle">Waiting</span>
+            <span id="transferStatusText" class="transfer-message">Idle</span>
+          </div>
+
+          <div class="progress-bar-container" aria-label="Transfer progress">
+            <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+          </div>
+          <div class="progress-meta">
+            <span id="progressPercent">0%</span>
+            <span id="transferDetails">0 B / 0 B</span>
+          </div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- Received Files Section -->
+        <h2>4. Received Files</h2>
+        <p class="help-text">Files received from peers are verified and available to download below:</p>
+        <div id="receivedFilesList" class="received-list">
+          <div class="empty-state">No files received yet.</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Diagnostic Panel -->
+    <section class="card diagnostics-card" aria-label="Network Diagnostics">
+      <h2>5. Diagnostics & Failure Capture</h2>
+      <div class="diag-grid">
+        <div class="diag-item">
+          <span class="diag-label">Socket.IO:</span>
+          <span id="diagSocket" class="badge">Checking…</span>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">Socket ID:</span>
+          <code id="diagSocketId">-</code>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">Network Mode:</span>
+          <span id="diagMode" class="badge badge-completed">Local-Only</span>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">Peer Connection:</span>
+          <span id="diagPeer" class="badge">None</span>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">ICE Connection:</span>
+          <span id="diagIce" class="badge">New</span>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">ICE Gathering:</span>
+          <span id="diagGather" class="badge">New</span>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">DataChannel:</span>
+          <span id="diagChannel" class="badge">None</span>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">Channel Buffered:</span>
+          <code id="diagBuffered">0 B</code>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">Chunk Progress:</span>
+          <code id="diagChunkInfo">Idle</code>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">Candidate Types:</span>
+          <code id="diagCandidateTypes">-</code>
+        </div>
+        <div class="diag-item diag-full">
+          <span class="diag-label">Last Error / Exception:</span>
+          <code id="diagLastError">None</code>
+        </div>
+        <div class="diag-item diag-full">
+          <span class="diag-label">Signaling Log:</span>
+          <pre id="diagSignalLog" class="diag-log">No signaling events yet.</pre>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      QuickShare Testing Frontend · Direct peer-to-peer WebRTC file transfer
+    </footer>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

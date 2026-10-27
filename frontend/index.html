@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c1020">
+  <meta name="description" content="Share files directly with nearby devices using QuickShare.">
+  <title>QuickShare — Send files nearby</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="QuickShare home"><span class="brand-mark">Q</span> QuickShare</a>
+    <div class="connection"><span class="pulse" id="connectionDot"></span><span id="connectionText">Connecting…</span></div>
+  </header>
+
+  <main class="layout">
+    <section class="intro">
+      <p class="eyebrow">FAST. PRIVATE. NEARBY.</p>
+      <h1>Send files.<br><span>Not links.</span></h1>
+      <p class="lede">Share photos, videos, and documents directly with devices on your network.</p>
+      <div class="privacy-note"><span aria-hidden="true">◇</span><span>Files travel directly between devices. QuickShare does not store your files.</span></div>
+    </section>
+
+    <section class="share-card" aria-label="Send files">
+      <div class="card-head"><div><p class="eyebrow">YOUR DEVICE</p><h2 id="myDevice">This device</h2></div><span class="device-icon" aria-hidden="true">▣</span></div>
+      <label class="field-label" for="deviceName">Device name</label>
+      <div class="name-row"><input id="deviceName" maxlength="40" autocomplete="off" placeholder="e.g. Alex’s laptop"><button id="saveName" class="quiet-button" type="button">Save</button></div>
+
+      <div class="section-title"><h3>Nearby devices</h3><span id="deviceCount">0 found</span></div>
+      <div id="deviceList" class="device-list"><div class="empty-state">Looking for devices on your network…</div></div>
+
+      <div class="section-title file-title"><h3>Your files</h3><span id="fileCount">0 selected</span></div>
+      <label class="drop-zone" id="dropZone" for="fileInput">
+        <input id="fileInput" type="file" multiple>
+        <span class="upload-icon" aria-hidden="true">↑</span>
+        <strong>Choose files or drop them here</strong>
+        <span>Files are sent directly to your selected device</span>
+      </label>
+      <ul id="fileList" class="file-list" aria-live="polite"></ul>
+      <div id="transferStatus" class="transfer-status" role="status" aria-live="polite"></div>
+      <button id="sendButton" class="send-button" type="button" disabled>Choose a device to send</button>
+      <p class="hint">Keep this page open on both devices while transferring.</p>
+    </section>
+  </main>
+  <footer>QuickShare <span>·</span> Local network file sharing</footer>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/script.js"></script>
+</body>
+</html>
